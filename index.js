@@ -1,57 +1,32 @@
-async function mySecrets(secretName) {
-    // Load the AWS SDK
-    var AWS = require('aws-sdk'),
-        region = process.env.AWS_REGION,
-        secretName = secretName,
-        secret,
-        decodedBinarySecret;
-
-    // Create a Secrets Manager client
-    var client = new AWS.SecretsManager({
-        region: region
+  var AWS = require('aws-sdk'),
+      region = process.env.AWS_REGION,
+      secretName = secretName,
+      secret,
+      decodedBinarySecret;
+      
+// Handler function
+exports.handler = (event, context) => {
+    let secret = event.ResourceProperties.stack;
+    let params = {
+        "SecretId": secret
+    }
+    var secretsmanager = new AWS.SecretsManager();
+    const request = secretsmanager.getSecretValue(params, function(err, data) {
+       if (err) console.log(err, err.stack); // an error occurred
+       else     console.log(data);           // successful response
+   });
+    
+    request.on('success', function(response) {
+    const value = JSON.parse(response.data.SecretString);
+    console.log(value);
+    sendResponse(event, context, 'SUCCESS', { 'Message': 'Resource creation successful!',  "host": value.host, "user": value.username, "dbpass": value.password});
+    })
+    .on('error', function(error, response) {
+        sendResponse(event, context, 'FAILED');
     });
 
-    return new Promise((resolve,reject)=>{
-        client.getSecretValue({SecretId: secretName}, function(err, data) {
-
-            // In this sample we only handle the specific exceptions for the 'GetSecretValue' API.
-            // See https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
-            // We rethrow the exception by default.
-            if (err) {
-                reject(err);
-            }
-            else {
-                // Decrypts secret using the associated KMS CMK.
-                // Depending on whether the secret is a string or binary, one of these fields will be populated.
-                if ('SecretString' in data) {
-                    resolve(data.SecretString);
-                } else {
-                    let buff = new Buffer(data.SecretBinary, 'base64');
-                    resolve(buff.toString('ascii'));
-                }
-            }
-        });
-    });
 }
 
-// inside handler
-exports.handler = async (event, context) => {
-    
-    const secret = event.ResourceProperties.secretName;
-    console.log(event.ResourceProperties)
-
-    var value = await mySecrets(secret);
-    console.log(value);
-    
-    value = JSON.parse(value)
-    
-    console.log(value.host)
-
-    sendResponse(event, context, 'SUCCESS', { 'Message': 'Resource creation successful!',  'host': value.host, 'db_pass': value.password, 'user': value.username});
-
-    return
-
-};
 
 
 
