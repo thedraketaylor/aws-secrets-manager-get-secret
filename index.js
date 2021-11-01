@@ -6,7 +6,7 @@
       
 // Handler function
 exports.handler = (event, context) => {
-    let secret = event.ResourceProperties.stack;
+    let secret = event.ResourceProperties.secretName;
     let params = {
         "SecretId": secret
     }
