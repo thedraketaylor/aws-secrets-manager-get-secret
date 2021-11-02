@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Test cloudformation template
+Resources:
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt RootRole.Arn
+      Runtime: nodejs14.x
+      Code:
+        ZipFile: >
+          const aws = require('aws-sdk')
+          const response = require('cfn-response');
+          exports.handler = (event, context) => {
+          let secret = event.ResourceProperties.secretName;
+          let params = {
+              "SecretId": secret
+          }
+          var secretsmanager = new aws.SecretsManager();
+          const request = secretsmanager.getSecretValue(params, function(err, data) {
+            if (err) console.log(err, err.stack); // an error occurred
+            else     console.log(data);           // successful response
+          });
+          
+          request.on('success', function(response) {
+          const value = JSON.parse(response.data.SecretString);
+          response.send(event, context, response.SUCCESS, { 'Message': 'Resource creation successful!',  "host": value.host, "user": value.username, "dbpass": value.password});
+          })
+          .on('error', function(error, response) {
+              response.send(event, context, response.FAILED);
+          });
+          }
+
+  RootRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: wordpress-get-secret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 'secretsmanager:GetSecretValue'
+                Resource: !Sub 'arn:aws:secretsmanager:*:${AWS::AccountId}:secret:*'
